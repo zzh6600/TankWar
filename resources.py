@@ -7,6 +7,9 @@ import os
 class ResourceLoader:
     """资源加载工具类"""
 
+    # 静态变量存储已加载的音效
+    _sounds = {}
+
     @staticmethod
     def load_image(name, colorkey=None):
         """加载图片资源"""
@@ -30,21 +33,33 @@ class ResourceLoader:
 
     @staticmethod
     def load_sound(name):
-        """加载音效资源"""
+        """加载音效资源（延迟初始化）"""
+        if name in ResourceLoader._sounds:
+            return ResourceLoader._sounds[name]
 
-        class NoneSound:
-            def play(self): pass
+        if not pygame.mixer or not pygame.mixer.get_init():
+            print("警告: 混音器未初始化，音效将无法播放")
 
-        if not pygame.mixer:
-            return NoneSound()
+            class NoneSound:
+                def play(self): pass
 
-        fullname = os.path.join(RESOURCE_PATH['music'], name)
-        try:
-            sound = pygame.mixer.Sound(fullname)
-        except pygame.error as message:
-            print(f"无法加载音效: {fullname}")
-            return NoneSound()
+            sound = NoneSound()
+        else:
+            fullname = os.path.join(RESOURCE_PATH['music'], name)
+            try:
+                sound = pygame.mixer.Sound(fullname)
+                print(f"成功加载音效: {fullname}")
+            except pygame.error as e:
+                print(f"无法加载音效: {fullname}")
+                print(f"错误详情: {str(e)}")
 
+                class NoneSound:
+                    def play(self): pass
+
+                sound = NoneSound()
+
+        # 缓存音效
+        ResourceLoader._sounds[name] = sound
         return sound
 
     @staticmethod

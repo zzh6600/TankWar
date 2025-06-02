@@ -5,6 +5,8 @@ from projectiles import Bullet
 from resources import ResourceLoader
 
 
+
+
 class Tank(pygame.sprite.Sprite):
     """坦克基类"""
 
@@ -26,6 +28,11 @@ class Tank(pygame.sprite.Sprite):
         self.images = self._load_images()
         self.image = self.images[self.direction]
         self.rect = self.image.get_rect(topleft=(x, y))
+
+
+        # 延迟加载音效
+        self.shoot_sound = ResourceLoader.load_sound('fire.wav')
+        self.hit_sound = ResourceLoader.load_sound('hit.wav')
 
     def _load_images(self):
         """加载坦克图像"""
@@ -103,9 +110,16 @@ class Tank(pygame.sprite.Sprite):
             # 设置射击冷却
             self.can_shoot = False
 
+            # 播放射击音效
+            self.shoot_sound.play()
+
     def hit(self, damage):
         """被击中处理"""
         self.health -= damage
+
+        # 播放被击中音效
+        self.hit_sound.play()
+
         return self.health <= 0
 
     def upgrade(self):

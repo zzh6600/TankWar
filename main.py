@@ -4,14 +4,21 @@ from config import *
 from start_scene import StartScene
 from game_scene import GameScene
 from end_scene import EndScene
-
+from resources import ResourceLoader
 
 class TankWarGame:
     """坦克大战游戏主类"""
 
     def __init__(self):
         pygame.init()
-        pygame.mixer.init()
+        # 强制初始化混音器并设置参数
+        try:
+            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
+            print("混音器初始化成功")
+        except pygame.error as e:
+            print(f"混音器初始化失败: {e}")
+            # 可以选择在此处退出游戏，或者使用静默模式
+            # sys.exit(1)
 
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("坦克大战")
@@ -29,8 +36,11 @@ class TankWarGame:
 
     def _load_resources(self):
         """加载游戏资源"""
-        # 实际项目中会使用ResourceLoader加载所有资源
-        pass
+        try:
+            ResourceLoader.load_music('start.wav')
+            pygame.mixer.music.play(1)  # -1 表示循环播放
+        except pygame.error as e:
+            print(f"加载背景音乐失败: {e}")
 
     def _init_scenes(self):
         """初始化游戏场景"""

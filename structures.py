@@ -1,5 +1,7 @@
 import pygame
 from config import *
+from resources import ResourceLoader
+
 
 
 class Structure(pygame.sprite.Sprite):
@@ -18,10 +20,18 @@ class Structure(pygame.sprite.Sprite):
             self.image.fill(WHITE)
 
         self.rect = self.image.get_rect(topleft=(x, y))
-
+        # 延迟加载音效
+        self.hit_sound = ResourceLoader.load_sound('bang.wav')
     def hit(self, damage):
         """被击中处理"""
         self.health -= damage
+
+        try:
+            # 播放被击中音效
+            self.hit_sound.play()
+        except AttributeError:
+            print("无法播放建筑被击中音效")
+
         return self.health <= 0
 
 
