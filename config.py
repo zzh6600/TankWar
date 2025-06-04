@@ -15,6 +15,17 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 YELLOW = (255, 255, 0)
 
+# 地图元素类型
+TILE_EMPTY = 0   # 空地
+TILE_BRICK = 1   # 红砖
+TILE_IRON = 2    # 铁墙
+TILE_RIVER = 3   # 河流
+TILE_FOREST = 4  # 森林
+TILE_HEADQUARTERS = 5  # 司令部
+
+# 地图尺寸
+TILE_SIZE = 30  # 每个地图格子的像素大小
+
 # 坦克设置
 TANK_SIZE = 40
 PLAYER_SPEED = 5
@@ -64,3 +75,12 @@ GAME_START = 0
 GAME_PLAYING = 1
 GAME_OVER = 2
 GAME_WIN = 3
+
+# 计算最大行列数（向下取整）
+MAX_COLS = SCREEN_WIDTH // TILE_SIZE
+MAX_ROWS = SCREEN_HEIGHT // TILE_SIZE
+
+UP = 0
+DOWN = 1
+LEFT = 2
+RIGHT = 3

@@ -1,6 +1,7 @@
 import pygame
 import random
 from config import *
+from map import GameMap
 from tanks import PlayerTank, EnemyTank
 from projectiles import Bullet
 from structures import Brick, Iron, River, Forest, Headquarters
@@ -9,16 +10,12 @@ from items import Fruit, create_random_fruit
 
 class GameScene:
     """游戏主场景"""
-
-    def __init__(self, screen):
+    def __init__(self, screen, level=1):
         self.screen = screen
-        self.player = PlayerTank(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100)
+        self.map = GameMap(level)
+        self.headquarters = self.map.headquarters
+        self.player = PlayerTank(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 200)
         self.enemies = []
-        self.bricks = []
-        self.irons = []
-        self.rivers = []
-        self.forests = []
-        self.headquarters = Headquarters(SCREEN_WIDTH // 2 - 20, SCREEN_HEIGHT - 60)
         self.fruits = []
         self.bullets = []
         self.explosions = []
@@ -26,44 +23,12 @@ class GameScene:
         self.total_enemies = 20
         self.spawned_enemies = 0
         self.last_spawn_time = 0
-        self.spawn_interval = 180  # 敌人生成间隔
+        self.spawn_interval = 180
         self.game_over = False
         self.victory = False
         self.font = pygame.font.SysFont(None, 36)
 
-        # 初始化地图
-        self._init_map()
 
-    def _init_map(self):
-        """初始化地图"""
-        # 创建围墙
-        for x in range(0, SCREEN_WIDTH, 30):
-            self.bricks.append(Brick(x, 0))
-            self.bricks.append(Brick(x, SCREEN_HEIGHT - 30))
-
-        for y in range(30, SCREEN_HEIGHT - 30, 30):
-            self.bricks.append(Brick(0, y))
-            self.bricks.append(Brick(SCREEN_WIDTH - 30, y))
-
-        # 在地图中随机放置一些砖块和铁墙
-        for _ in range(30):
-            x = random.randint(60, SCREEN_WIDTH - 90)
-            y = random.randint(60, SCREEN_HEIGHT - 150)
-            self.bricks.append(Brick(x, y))
-
-        for _ in range(15):
-            x = random.randint(60, SCREEN_WIDTH - 90)
-            y = random.randint(60, SCREEN_HEIGHT - 150)
-            self.irons.append(Iron(x, y))
-
-        # 在司令部周围放置保护墙
-        hq_x = self.headquarters.x
-        hq_y = self.headquarters.y
-
-        for i in range(-1, 2):
-            for j in range(-1, 0):
-                if i != 0 or j != 0:
-                    self.bricks.append(Brick(hq_x + i * 30, hq_y + j * 30))
 
     def _spawn_enemy(self):
         """生成敌人"""
@@ -91,40 +56,35 @@ class GameScene:
             self.spawned_enemies += 1
             self.last_spawn_time = pygame.time.get_ticks()
 
+
     def handle_event(self, event):
-        """处理事件"""
+        """处理事件，包括射击"""
         if event.type == pygame.QUIT:
             return None
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                self.player.shoot()
+                self.player.shoot()  # 调用 shoot() 方法，内部已处理数量限制
 
         return GAME_PLAYING if not self.game_over else GAME_OVER
 
     def update(self):
-        """更新场景"""
         if self.game_over:
             return
 
-        # 生成敌人
         self._spawn_enemy()
-
         # 更新玩家
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_UP]:
-            self.player.move(UP)
-        elif keys[pygame.K_DOWN]:
-            self.player.move(DOWN)
-        elif keys[pygame.K_LEFT]:
-            self.player.move(LEFT)
-        elif keys[pygame.K_RIGHT]:
-            self.player.move(RIGHT)
+        if not self.game_over:
+            self.player.handle_input()  # 处理输入并设置移动量
+            if not self._check_tank_map_collision(self.player):
+                self.player.apply_movement()  # 直接应用移动量
 
-        self.player.update()
-
-        # 更新敌人
+        # 更新敌人（敌人的移动逻辑在 EnemyTank.update() 中）
         for enemy in self.enemies[:]:
-            enemy.update()
+            enemy.update()  # 敌人AI逻辑
+            if self._check_tank_map_collision(enemy):
+                enemy.reset_movement()
+
+
 
             # 检查敌人与玩家的碰撞
             if pygame.sprite.collide_rect(enemy, self.player):
@@ -144,13 +104,37 @@ class GameScene:
                         fruit = create_random_fruit(enemy.x, enemy.y)
                         self.fruits.append(fruit)
 
-            # 更新敌人炮弹
-            for bullet in enemy.bullets[:]:
+        # 更新敌人炮弹
+        for enemy in self.enemies[:]:
+            for bullet in list(enemy.bullets):
                 if not bullet.update():
                     enemy.bullets.remove(bullet)
                     continue
 
-                # 检查敌人炮弹与玩家的碰撞
+                # 检查与地图元素的碰撞
+                hit_structure = None
+                for structure in self.map.structures:
+                    if pygame.sprite.collide_rect(bullet, structure):
+                        hit_structure = structure
+                        break
+
+                if hit_structure:
+                    # 炮弹可以穿过森林和河流，不处理碰撞
+                    if isinstance(hit_structure, Forest) or isinstance(hit_structure, River):
+                        continue
+
+                    enemy.bullets.remove(bullet)
+                    if isinstance(hit_structure, Brick):
+                        if hit_structure.hit(bullet.damage):
+                            self.map.structures.remove(hit_structure)
+                    elif isinstance(hit_structure, Iron):
+                        pass  # 铁墙阻挡但不摧毁
+                    elif isinstance(hit_structure, Headquarters):
+                        if hit_structure.hit(bullet.damage):
+                            self.game_over = True
+                    continue  # 跳过后续碰撞检测
+
+                # 检查与玩家的碰撞
                 if pygame.sprite.collide_rect(bullet, self.player):
                     enemy.bullets.remove(bullet)
                     if self.player.hit(bullet.damage):
@@ -160,82 +144,55 @@ class GameScene:
                         else:
                             self.game_over = True
 
-                # 检查敌人炮弹与建筑的碰撞
-                hit_brick = False
-                for brick in self.bricks[:]:
-                    if pygame.sprite.collide_rect(bullet, brick):
-                        enemy.bullets.remove(bullet)
-                        if brick.hit(bullet.damage):
-                            self.bricks.remove(brick)
-                        hit_brick = True
-                        break
-
-                if hit_brick:
-                    continue
-
-                for iron in self.irons[:]:
-                    if pygame.sprite.collide_rect(bullet, iron):
-                        enemy.bullets.remove(bullet)
-                        if iron.hit(bullet.damage):
-                            self.irons.remove(iron)
-                        break
-
-                # 检查敌人炮弹与司令部的碰撞
-                if pygame.sprite.collide_rect(bullet, self.headquarters):
-                    enemy.bullets.remove(bullet)
-                    if self.headquarters.hit(bullet.damage):
-                        self.game_over = True
-
         # 更新玩家炮弹
-        for bullet in self.player.bullets[:]:
+        bullets_to_remove = []
+        for bullet in self.player.bullets:
             if not bullet.update():
-                self.player.bullets.remove(bullet)
+                bullets_to_remove.append(bullet)
                 continue
 
-            # 检查玩家炮弹与敌人的碰撞
-            hit_enemy = False
+            # 检查与地图元素的碰撞
+            hit_structure = None
+            for structure in self.map.structures:
+                if pygame.sprite.collide_rect(bullet, structure):
+                    hit_structure = structure
+                    break
+
+            if hit_structure:
+                # 炮弹可以穿过森林和河流，不处理碰撞
+                if isinstance(hit_structure, Forest) or isinstance(hit_structure, River):
+                    continue
+                bullets_to_remove.append(bullet)  # 标记为需要移除
+                if isinstance(hit_structure, Brick):
+                    if hit_structure.hit(bullet.damage):
+                        self.map.structures.remove(hit_structure)
+                elif isinstance(hit_structure, Iron):
+                    pass  # 铁墙阻挡但不摧毁
+                elif isinstance(hit_structure, Headquarters):
+                    if hit_structure.hit(bullet.damage):
+                        self.game_over = True
+                continue  # 跳过后续碰撞检测
+
+            # 检查与敌人坦克的碰撞
+            hit_enemy = None
             for enemy in self.enemies[:]:
                 if pygame.sprite.collide_rect(bullet, enemy):
-                    self.player.bullets.remove(bullet)
-                    if enemy.hit(bullet.damage):
-                        self.enemies.remove(enemy)
-                        self.enemies_destroyed += 1
-                        # 目标坦克被摧毁后生成果实
-                        if enemy.enemy_type == ENEMY_TARGET:
-                            fruit = create_random_fruit(enemy.x, enemy.y)
-                            self.fruits.append(fruit)
-                    hit_enemy = True
+                    hit_enemy = enemy
                     break
 
             if hit_enemy:
-                continue
-
-            # 检查玩家炮弹与建筑的碰撞
-            hit_brick = False
-            for brick in self.bricks[:]:
-                if pygame.sprite.collide_rect(bullet, brick):
-                    self.player.bullets.remove(bullet)
-                    if brick.hit(bullet.damage):
-                        self.bricks.remove(brick)
-                    hit_brick = True
-                    break
-
-            if hit_brick:
-                continue
-
-            for iron in self.irons[:]:
-                if pygame.sprite.collide_rect(bullet, iron):
-                    self.player.bullets.remove(bullet)
-                    if iron.hit(bullet.damage):
-                        self.irons.remove(iron)
-                    break
-
-            # 检查玩家炮弹与司令部的碰撞
-            if pygame.sprite.collide_rect(bullet, self.headquarters):
+                bullets_to_remove.append(bullet)  # 标记为需要移除
                 self.player.bullets.remove(bullet)
-                if self.headquarters.hit(bullet.damage):
-                    self.game_over = True
-
+                if hit_enemy.hit(bullet.damage):
+                    self.enemies.remove(hit_enemy)
+                    self.enemies_destroyed += 1
+                    # 检查是否胜利
+                    if self.enemies_destroyed >= self.total_enemies:
+                        self.victory = True
+        # 统一移除炮弹
+        for bullet in bullets_to_remove:
+            if bullet in self.player.bullets:
+                self.player.bullets.remove(bullet)
         # 更新果实
         for fruit in self.fruits[:]:
             if not fruit.update():
@@ -252,25 +209,40 @@ class GameScene:
             self.victory = True
             self.game_over = True
 
+    #
+    # game_scene.py
+    def _check_tank_map_collision(self, tank):
+        old_rect = tank.rect.copy()
+
+        # 应用移动量
+        tank.rect.x += tank.dx
+        tank.rect.y += tank.dy
+
+        # 检查碰撞
+        collision = any(
+            not structure.can_pass_tank and tank.rect.colliderect(structure.rect)
+            for structure in self.map.structures
+        )
+
+        if collision:
+            tank.rect = old_rect  # 恢复位置
+            tank.reset_movement()  # 重置移动量（dx/dy=0）
+            return True
+        return False
+
     def draw(self):
         """绘制场景"""
         self.screen.fill(BLACK)
 
-        # 绘制建筑
-        for brick in self.bricks:
-            self.screen.blit(brick.image, brick.rect)
-
-        for iron in self.irons:
-            self.screen.blit(iron.image, iron.rect)
-
-        for river in self.rivers:
-            self.screen.blit(river.image, river.rect)
-
-        for forest in self.forests:
-            self.screen.blit(forest.image, forest.rect)
+        # 绘制地图元素
+        for structure in self.map.structures:
+            self.screen.blit(structure.image, structure.rect)
+            # 调试：绘制铁墙的碰撞矩形（仅开发阶段使用）
+            if isinstance(structure, Iron):
+                pygame.draw.rect(self.screen, RED, structure.rect, 1)
 
         # 绘制司令部
-        self.screen.blit(self.headquarters.image, self.headquarters.rect)
+        self.screen.blit(self.map.headquarters.image, self.map.headquarters.rect)
 
         # 绘制果实
         for fruit in self.fruits:
@@ -278,6 +250,12 @@ class GameScene:
 
         # 绘制玩家
         self.screen.blit(self.player.image, self.player.rect)
+        pygame.draw.rect(
+                self.screen,  # 目标表面
+                (0, 255, 0),  # 绿色
+                self.player.rect,  # 玩家坦克的rect
+                2  # 边框宽度
+            )
 
         # 绘制玩家炮弹
         for bullet in self.player.bullets:

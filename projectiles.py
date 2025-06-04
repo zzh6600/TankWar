@@ -7,8 +7,6 @@ class Bullet(pygame.sprite.Sprite):
 
     def __init__(self, x, y, direction, level):
         super().__init__()
-        self.x = x
-        self.y = y
         self.direction = direction
         self.level = level
         self.speed = BULLET_SPEED * level  # 炮弹速度由发射坦克等级决定
@@ -19,22 +17,24 @@ class Bullet(pygame.sprite.Sprite):
         self.image.fill(YELLOW)
         self.rect = self.image.get_rect(topleft=(x, y))
 
+        # 记录初始位置（用于调试）
+        self.start_x = x
+        self.start_y = y
+
     def update(self):
         """更新炮弹位置"""
+        # 使用 rect 的移动方法直接更新位置
         if self.direction == UP:
-            self.y -= self.speed
+            self.rect.y -= self.speed
         elif self.direction == DOWN:
-            self.y += self.speed
+            self.rect.y += self.speed
         elif self.direction == LEFT:
-            self.x -= self.speed
+            self.rect.x -= self.speed
         elif self.direction == RIGHT:
-            self.x += self.speed
+            self.rect.x += self.speed
 
-        self.rect.topleft = (self.x, self.y)
-
-        # 检查是否超出屏幕边界
-        if (self.x < 0 or self.x > SCREEN_WIDTH or
-                self.y < 0 or self.y > SCREEN_HEIGHT):
+        # 检查是否超出屏幕边界（使用 rect 直接检测）
+        if not self.rect.colliderect(pygame.display.get_surface().get_rect()):
             return False
 
         return True
