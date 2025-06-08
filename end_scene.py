@@ -17,9 +17,11 @@ class EndScene:
         """处理事件"""
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.restart_button.collidepoint(event.pos):
-                return GAME_PLAYING
+                return GAME_START
             elif self.quit_button.collidepoint(event.pos):
                 return None  # 返回None表示退出游戏
+
+
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 return GAME_START
@@ -28,7 +30,9 @@ class EndScene:
 
     def update(self):
         """更新场景"""
-        pass
+        mouse_pos = pygame.mouse.get_pos()
+        if self.restart_button.collidepoint(mouse_pos):
+            self.restart_button.width = 250  # 鼠标悬停时稍微放大按钮
 
     def draw(self):
         """绘制场景"""
@@ -38,14 +42,14 @@ class EndScene:
         if self.victory:
             result = self.title_font.render("win!", True, GREEN)
         else:
-            result = self.title_font.render("you lose!", True, RED)
+            result = self.title_font.render("lose!", True, RED)
 
         result_rect = result.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4))
         self.screen.blit(result, result_rect)
 
         # 绘制重新开始按钮
         pygame.draw.rect(self.screen, BLUE, self.restart_button)
-        restart_text = self.font.render("restart", True, WHITE)
+        restart_text = self.font.render("back", True, WHITE)
         restart_text_rect = restart_text.get_rect(center=self.restart_button.center)
         self.screen.blit(restart_text, restart_text_rect)
 

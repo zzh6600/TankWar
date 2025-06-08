@@ -29,7 +29,7 @@ TILE_SIZE = 30  # 每个地图格子的像素大小
 # 坦克设置
 TANK_SIZE = 40
 PLAYER_SPEED = 5
-ENEMY_SPEED = 3
+ENEMY_SPEED = 2
 
 # 炮弹设置
 BULLET_SIZE = 10
@@ -70,6 +70,8 @@ FRUIT_TANK = 'tank'  # 增加备用坦克
 FRUIT_GUN = 'gun'    # 炮弹速度增加
 FRUIT_SHELL = 'shell'  # 允许同时发射两发炮弹
 
+FRUIT_SIZE = 27
+
 # 游戏状态
 GAME_START = 0
 GAME_PLAYING = 1
@@ -84,3 +86,6 @@ UP = 0
 DOWN = 1
 LEFT = 2
 RIGHT = 3
+
+# 无敌时间（毫秒）
+INVINCIBLE_TIME = 180  # 约3秒（假设60FPS）

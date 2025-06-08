@@ -18,28 +18,68 @@ class GameMap:
 
     def _load_map_matrix(self, level=1):
         if level == 1:
+            # 地形类型定义
+            EMPTY = 0  # 空地
+            BRICK = 1  # 红砖（可摧毁）
+            IRON = 2  # 铁墙（不可摧毁）
+            RIVER = 3  # 河流（坦克不可通过，子弹可通过）
+            FOREST = 4  # 森林（坦克/子弹均可通过）
+            HQ = 5  # 司令部（不可摧毁）
+
             # 顶部围墙（行0）
-            top_wall = [2] * 26
+            top_wall = [IRON] * 26
 
-            # 中间区域（行1-18），预留中间区域添加元素
-            middle_rows = []
-            for y in range(18):
-                # 左右围墙固定为铁墙（2），中间24格为可填充区域
-                row = [2] + [0] * 24 + [2]
+            # 中间区域（行1-18）
+            middle_rows = [
+                # 行1-2：对称河流+森林混合带
+                [IRON, EMPTY, FOREST, EMPTY, FOREST, EMPTY, FOREST, RIVER, FOREST, RIVER, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, EMPTY, RIVER, FOREST, RIVER, FOREST, EMPTY, FOREST, EMPTY, FOREST, EMPTY, IRON],
+                [IRON, EMPTY, FOREST, EMPTY, FOREST, EMPTY, FOREST, RIVER, FOREST, RIVER, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, EMPTY, RIVER, FOREST, RIVER, FOREST, EMPTY, FOREST, EMPTY, FOREST, EMPTY, IRON],
 
-                # 在中间区域（y=3~15行）随机添加元素
-                if 3 <= y <= 15:
-                    for x in range(1, 25):  # 中间24格（x=1到x=24）
-                        if random.random() < 0.2:  # 20%概率添加元素
-                            element = random.choice([1, 2, 3, 4])  # 随机选择元素类型
-                            row[x] = element
-                middle_rows.append(row)
+                # 行3-7：红砖矩阵+纵向通道
+                [IRON, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, EMPTY, EMPTY, EMPTY, EMPTY,
+                 BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, IRON],
+                [IRON, BRICK, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, BRICK, BRICK, EMPTY, EMPTY, EMPTY, EMPTY,
+                 BRICK, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, BRICK, BRICK, IRON],
+                [IRON, BRICK, EMPTY, BRICK, BRICK, BRICK, BRICK, BRICK, EMPTY, BRICK, BRICK, EMPTY, BRICK, BRICK, BRICK,
+                 BRICK, EMPTY, BRICK, BRICK, BRICK, BRICK, BRICK, EMPTY, BRICK, BRICK, IRON],
+                [IRON, BRICK, EMPTY, BRICK, EMPTY, EMPTY, EMPTY, BRICK, EMPTY, BRICK, BRICK, EMPTY, BRICK, EMPTY, EMPTY,
+                 EMPTY, BRICK, EMPTY, BRICK, EMPTY, EMPTY, EMPTY, BRICK, EMPTY, BRICK, IRON],
+                [IRON, BRICK, EMPTY, BRICK, BRICK, BRICK, BRICK, BRICK, EMPTY, BRICK, BRICK, EMPTY, BRICK, BRICK, BRICK,
+                 BRICK, EMPTY, BRICK, BRICK, BRICK, BRICK, BRICK, EMPTY, BRICK, BRICK, IRON],
 
-            # 底部围墙（行19，包含司令部）
-            # 修正：原底部围墙元素数量错误，应为26列（2+11+1+12+2=28，错误），现调整为正确的26列
-            # 司令部位置：中间偏下，左右各留12格
-            bottom_wall = [2] + [0] * 12 + [5] + [0] * 12 + [2]
-            # 确保底部行总长度为26列（1+12+1+12+1=27？不，正确计算：[2] + [0]*12（13） + [5]（14） + [0]*12（26），正确）
+                # 行8-10：中心湖泊+铁桥通道
+                [IRON, EMPTY, EMPTY, EMPTY, RIVER, RIVER, RIVER, EMPTY, EMPTY, EMPTY, RIVER, RIVER, RIVER, RIVER, RIVER,
+                 RIVER, RIVER, RIVER, RIVER, RIVER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, IRON],
+                [IRON, EMPTY, IRON, IRON, IRON, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, EMPTY, EMPTY, IRON, IRON, IRON, EMPTY, EMPTY, EMPTY, EMPTY, IRON],
+                [IRON, EMPTY, IRON, EMPTY, EMPTY, EMPTY, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK,
+                 BRICK, BRICK, EMPTY, EMPTY, IRON, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, IRON],
+
+                # 行11-15：森林迷宫+横向通道
+                [IRON, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST,
+                 BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, IRON],
+                [IRON, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK,
+                 FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, IRON],
+                [IRON, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, EMPTY, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, IRON],
+                [IRON, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, EMPTY, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, IRON],
+                [IRON, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST,
+                 BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, FOREST, BRICK, IRON],
+
+                # 行16-17：司令部前哨防御
+                [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+                 EMPTY, EMPTY,
+                 EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+                [BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK,
+                 BRICK,
+                 BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK, BRICK],
+            ]
+
+            # 底部围墙（行18，司令部居中）
+            bottom_wall = [IRON] * 12 + [HQ] + [IRON] * 13  # 司令部位于x=12（更靠左，增加防御难度）
 
             return [top_wall] + middle_rows + [bottom_wall]
         return []
@@ -62,7 +102,7 @@ class GameMap:
                         for j in (-1,):
                             if i == 0 and j == 0:
                                 continue
-                            self.structures.append(Iron(pos_x + i * self.tile_size, pos_y + j * self.tile_size))
+                            self.structures.append(Brick(pos_x + i * self.tile_size, pos_y + j * self.tile_size))
                 elif tile == TILE_BRICK:
                     self.structures.append(Brick(pos_x, pos_y))
                 elif tile == TILE_IRON:

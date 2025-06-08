@@ -15,6 +15,8 @@ DIRECTION_MAP = {
 
 class Tank(pygame.sprite.Sprite):
     """坦克基类"""
+
+
     def __init__(self, x, y, color, health, level=TANK_LEVEL_1):
         super().__init__()
         self.x = x
@@ -24,10 +26,9 @@ class Tank(pygame.sprite.Sprite):
         self.max_health = health
         self.level = level
         self.direction = UP  # 初始方向为上
-        self.speed = PLAYER_SPEED  # 玩家坦克基础速度（敌方坦克在子类中覆盖）
         self.bullets = []
         self.max_bullets = 1
-        self._can_shoot = True
+
         self.shoot_cooldown = 30
         self.shoot_timer = 0
         self.dx = 0  # 水平移动量
@@ -88,43 +89,23 @@ class Tank(pygame.sprite.Sprite):
                 self. can_shoot = True
                 self.shoot_timer = 0
 
-    def move(self, direction):
-        """移动坦克并进行边界检查"""
-        self.direction = direction
-        dx, dy = 0, 0
-        if direction == UP:
-            dy = -self.speed
-        elif direction == DOWN:
-            dy = self.speed
-        elif direction == LEFT:
-            dx = -self.speed
-        elif direction == RIGHT:
-            dx = self.speed
 
-        # 移动并限制边界
-        self.x = max(0, min(self.x + dx, SCREEN_WIDTH - TANK_SIZE))
-        self.y = max(0, min(self.y + dy, SCREEN_HEIGHT - TANK_SIZE))
-        self.rect.topleft = (self.x, self.y)
 
-    def move_back(self):
-        """回退到移动前的位置（用于碰撞检测后）"""
-        if self.direction == UP:
-            self.y += self.speed
-        elif self.direction == DOWN:
-            self.y -= self.speed
-        elif self.direction == LEFT:
-            self.x += self.speed
-        elif self.direction == RIGHT:
-            self.x -= self.speed
-        self.rect.topleft = (self.x, self.y)
     def shoot(self):
-        """发射炮弹"""
-        if self._can_shoot and len(self.bullets) < self.max_bullets:
-            bullet = self._create_bullet()
-            self.bullets.append(bullet)
-            self._can_shoot = False
-            self.shoot_sound.play()
+        """射击方法，添加炮弹数量限制"""
+        if not self.can_shoot():
+            return None
+        # 记录射击时间
+        self.last_shot_time = pygame.time.get_ticks()
+        # 创建子弹
+        bullet_x, bullet_y = self.get_bullet_spawn_position()
+        bullet = Bullet(bullet_x, bullet_y, self.direction, self.level)
+        self.bullets.append(bullet)  # 直接添加到玩家的炮弹列表
+        return bullet
 
+    def can_shoot(self):
+        """检查是否可以射击：地图中没有自己的炮弹时才能发射"""
+        return len(self.bullets) == 0
     def _create_bullet(self):
         """创建炮弹（根据坦克方向和等级）"""
         center_x = self.x + TANK_SIZE // 2
@@ -159,6 +140,21 @@ class Tank(pygame.sprite.Sprite):
             self.health = self.max_health
             self.images = self._load_images()  # 重新加载升级后的图片
 
+    def get_bullet_spawn_position(self):
+        """计算子弹生成位置（从坦克中心或炮口发射）"""
+        center_x = self.rect.centerx
+        center_y = self.rect.centery
+        bullet_size = BULLET_SIZE  # 假设在 config.py 中定义
+
+        # 根据方向调整子弹位置，使其从炮口发射
+        if self.direction == UP:
+            return (center_x - bullet_size // 2, self.rect.top)
+        elif self.direction == DOWN:
+            return (center_x - bullet_size // 2, self.rect.bottom - bullet_size)
+        elif self.direction == LEFT:
+            return (self.rect.left, center_y - bullet_size // 2)
+        elif self.direction == RIGHT:
+            return (self.rect.right - bullet_size, center_y - bullet_size // 2)
 
 class PlayerTank(Tank):
     """玩家坦克类（L1-L3等级，方向1-4）"""
@@ -167,18 +163,38 @@ class PlayerTank(Tank):
         super().__init__(x, y, GREEN, 1, TANK_LEVEL_1)
         self.lives = 3  # 初始三条命
         self.speed = PLAYER_SPEED  # 玩家速度（可在config中定义）
+        self.health = self.max_health
+        self.spawn_x = x  # 保存出生点X坐标
+        self.spawn_y = y  # 保存出生点Y坐标
+        self.invincible = False  # 无敌状态
+        self.invincible_timer = 0  # 无敌计时器
 
-    def can_shoot(self):
-        """检查是否可以射击：地图中没有自己的炮弹时才能发射"""
-        return len(self.bullets) == 0 and self._can_shoot
+    def hit(self, damage):
+        """被击中处理，生命值减少时回到出生点"""
+        if self.invincible:  # 无敌状态不扣血
+            return False
 
-    def shoot(self):
-        """射击方法，添加炮弹数量限制"""
-        if not self.can_shoot():
-            return None
+        self.health -= damage
 
-        # 记录射击时间
-        self.last_shot_time = pygame.time.get_ticks()
+        # 检查生命值是否减少
+        if self.health < 0:
+            self.health = 1
+            self.respawn()  # 回到出生点
+            self.set_invincible(INVINCIBLE_TIME)  # 设置无敌状态（毫秒）
+
+        return self.health <= 0
+
+    def respawn(self):
+        """回到出生点"""
+        self.x = self.spawn_x
+        self.y = self.spawn_y
+        self.rect.topleft = (self.x, self.y)
+        self.direction = UP  # 重置方向为上
+
+    def set_invincible(self, duration_ms):
+        """设置无敌状态"""
+        self.invincible = True
+        self.invincible_timer = duration_ms
 
         # 创建子弹
         bullet_x, bullet_y = self.get_bullet_spawn_position()
@@ -191,11 +207,14 @@ class PlayerTank(Tank):
 
     def reset(self):
         """重置坦克状态（死亡后复活）"""
-        self.lives -= 1
         self.health = self.max_health
         self.level = TANK_LEVEL_1
         self.max_bullets = 1
         self.images = self._load_images()  # 重置为L1图片
+        if self.invincible:
+            self.invincible_timer -= 1
+            if self.invincible_timer <= 0:
+                self.invincible = False
 
     def handle_input(self):
         """处理玩家输入并更新方向和移动量"""
@@ -231,7 +250,7 @@ class EnemyTank(Tank):
         health = self._get_health_by_type(enemy_type)
         super().__init__(x, y, WHITE, health)  # 敌方默认颜色可在config中调整
         self.move_timer = 0
-        self.move_interval = random.randint(60, 120)  # 随机移动间隔
+        self.move_interval = random.randint(200, 400)  # 随机移动间隔
 
     def _get_speed_by_type(self, enemy_type):
         """根据敌方类型获取速度"""
@@ -241,6 +260,12 @@ class EnemyTank(Tank):
             3: ENEMY_SPEED * 0.8,  # 装甲（速度慢）
             4: ENEMY_SPEED * 1.2  # 精英（中等速度）
         }
+        # speed_map = {
+        #     1: 0.1,  # 普通
+        #     2: 0.1,  # 快速
+        #     3: 0.1,  # 装甲（速度慢）
+        #     4: 0.1  # 精英（中等速度）
+        # }
         return speed_map.get(enemy_type, ENEMY_SPEED)
 
     def _get_health_by_type(self, enemy_type):
@@ -259,28 +284,25 @@ class EnemyTank(Tank):
 
     def update(self):
         """敌人AI：随机移动和射击"""
-        super().update()  # 调用基类计算移动量
-
         # 随机改变方向
         self.move_timer += 1
         if self.move_timer >= self.move_interval:
-            self.direction = random.randint(0, 3)  # 随机方向
+            rrr = random.randint(0, 3)
+            if rrr == 0:
+                self.direction = UP
+                self.dy += -self.speed
+            elif rrr == 1:
+                self.direction = DOWN
+                self.dy += self.speed
+            elif rrr == 2:
+                self.direction = LEFT
+                self.dx += -self.speed
+            elif rrr == 3:
+                self.direction = RIGHT
+                self.dx += self.speed
             self.move_timer = 0
-            self.move_interval = random.randint(60, 120)
+            self.move_interval = random.randint(200, 400)
 
         # 随机射击
         if random.random() < 0.01:  # 1%概率射击
-            self.shoot()
-
-    def _update_movement(self):
-        """随机移动逻辑"""
-        self.move_timer += 1
-        if self.move_timer >= self.move_interval:
-            self.move(random.randint(0, 3))  # 0-3对应四个方向
-            self.move_timer = 0
-            self.move_interval = random.randint(60, 120)
-
-    def _update_shooting(self):
-        """随机射击逻辑（1%概率）"""
-        if random.random() < 0.01:
             self.shoot()

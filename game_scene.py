@@ -23,39 +23,47 @@ class GameScene:
         self.total_enemies = 20
         self.spawned_enemies = 0
         self.last_spawn_time = 0
-        self.spawn_interval = 180
         self.game_over = False
         self.victory = False
         self.font = pygame.font.SysFont(None, 36)
-
-
+        self.title_font = pygame.font.SysFont(None, 72)
+        self.non_target_counter = 0  # 连续非目标坦克计数器
+        self.spawn_interval = 1500  # 生成间隔（毫秒）
 
     def _spawn_enemy(self):
-        """生成敌人"""
-        if (self.spawned_enemies < self.total_enemies and
-                pygame.time.get_ticks() - self.last_spawn_time > self.spawn_interval):
+        """生成敌人（带数量限制和目标坦克规则）"""
+        # 总敌人未达上限，且当前存活敌人少于5辆
+        if self.enemies_destroyed < self.total_enemies and len(self.enemies) < 5:
+            current_time = pygame.time.get_ticks()
+            if current_time - self.last_spawn_time > self.spawn_interval:
+                # 随机选择生成位置（示例位置，可自定义）
+                spawn_positions = [
+                    (50, 50),
+                    (SCREEN_WIDTH // 2 - 20, 50),
+                    (SCREEN_WIDTH - 100, 50),
+                    (50, SCREEN_HEIGHT - 100),
+                    (SCREEN_WIDTH - 100, SCREEN_HEIGHT - 100)
+                ]
+                pos = random.choice(spawn_positions)
 
-            # 随机选择生成位置
-            spawn_positions = [
-                (50, 50),
-                (SCREEN_WIDTH // 2 - 20, 50),
-                (SCREEN_WIDTH - 100, 50)
-            ]
+                # 检查是否需要强制生成目标坦克
+                if self.non_target_counter >= 3:
+                    enemy_type = ENEMY_TARGET
+                    self.non_target_counter = 0  # 重置计数器
+                else:
+                    # 随机生成非目标坦克（普通/快速/装甲）或目标坦克（概率可调整）
+                    # 非目标类型占比75%，目标类型占比25%（可通过权重调整）
+                    possible_types = [ENEMY_NORMAL, ENEMY_FAST, ENEMY_ARMOR] * 3 + [ENEMY_TARGET]
+                    enemy_type = random.choice(possible_types)
+                    if enemy_type != ENEMY_TARGET:
+                        self.non_target_counter += 1
+                    else:
+                        self.non_target_counter = 0  # 生成目标坦克后重置计数器
 
-            pos = random.choice(spawn_positions)
-
-            # 确保连续3辆非目标坦克后一定会出现一辆目标坦克
-            non_target_count = sum(1 for e in self.enemies if e.enemy_type != ENEMY_TARGET)
-            if non_target_count >= 3:
-                enemy_type = ENEMY_TARGET
-            else:
-                enemy_type = random.choice([ENEMY_NORMAL, ENEMY_FAST, ENEMY_ARMOR, ENEMY_TARGET])
-
-            enemy = EnemyTank(pos[0], pos[1], enemy_type)
-            self.enemies.append(enemy)
-            self.spawned_enemies += 1
-            self.last_spawn_time = pygame.time.get_ticks()
-
+                # 创建敌人并添加到列表
+                enemy = EnemyTank(pos[0], pos[1], enemy_type)
+                self.enemies.append(enemy)
+                self.last_spawn_time = current_time
 
     def handle_event(self, event):
         """处理事件，包括射击"""
@@ -81,34 +89,21 @@ class GameScene:
         # 更新敌人（敌人的移动逻辑在 EnemyTank.update() 中）
         for enemy in self.enemies[:]:
             enemy.update()  # 敌人AI逻辑
-            if self._check_tank_map_collision(enemy):
-                enemy.reset_movement()
+            if not self._check_tank_map_collision(enemy):
+                enemy.image = enemy.images[enemy.direction]
+                enemy.apply_movement()
+            else:
+                enemy.dy = 0
+                enemy.dx = 0
 
 
-
-            # 检查敌人与玩家的碰撞
-            if pygame.sprite.collide_rect(enemy, self.player):
-                # 坦克相撞，双方都受到伤害
-                if self.player.hit(1):
-                    if self.player.lives > 0:
-                        self.player.lives -= 1
-                        self.player.reset()
-                    else:
-                        self.game_over = True
-
-                if enemy.hit(1):
-                    self.enemies.remove(enemy)
-                    self.enemies_destroyed += 1
-                    # 目标坦克被摧毁后生成果实
-                    if enemy.enemy_type == ENEMY_TARGET:
-                        fruit = create_random_fruit(enemy.x, enemy.y)
-                        self.fruits.append(fruit)
 
         # 更新敌人炮弹
         for enemy in self.enemies[:]:
-            for bullet in list(enemy.bullets):
+            bullets_to_remove = []
+            for bullet in enemy.bullets:
                 if not bullet.update():
-                    enemy.bullets.remove(bullet)
+                    bullets_to_remove.append(bullet)
                     continue
 
                 # 检查与地图元素的碰撞
@@ -117,7 +112,9 @@ class GameScene:
                     if pygame.sprite.collide_rect(bullet, structure):
                         hit_structure = structure
                         break
-
+                #检查与司令部的碰撞
+                if pygame.sprite.collide_rect(bullet, self.headquarters):
+                    self.game_over  = True
                 if hit_structure:
                     # 炮弹可以穿过森林和河流，不处理碰撞
                     if isinstance(hit_structure, Forest) or isinstance(hit_structure, River):
@@ -157,7 +154,9 @@ class GameScene:
                 if pygame.sprite.collide_rect(bullet, structure):
                     hit_structure = structure
                     break
-
+            #  检查与司令部的碰撞
+            if pygame.sprite.collide_rect(bullet, self.headquarters):
+                self.game_over = True
             if hit_structure:
                 # 炮弹可以穿过森林和河流，不处理碰撞
                 if isinstance(hit_structure, Forest) or isinstance(hit_structure, River):
@@ -186,6 +185,9 @@ class GameScene:
                 if hit_enemy.hit(bullet.damage):
                     self.enemies.remove(hit_enemy)
                     self.enemies_destroyed += 1
+                    if hit_enemy.enemy_type == ENEMY_TARGET:
+                        fruit = create_random_fruit(hit_enemy.x, hit_enemy.y)
+                        self.fruits.append(fruit)
                     # 检查是否胜利
                     if self.enemies_destroyed >= self.total_enemies:
                         self.victory = True
@@ -193,6 +195,7 @@ class GameScene:
         for bullet in bullets_to_remove:
             if bullet in self.player.bullets:
                 self.player.bullets.remove(bullet)
+
         # 更新果实
         for fruit in self.fruits[:]:
             if not fruit.update():
@@ -238,8 +241,12 @@ class GameScene:
         for structure in self.map.structures:
             self.screen.blit(structure.image, structure.rect)
             # 调试：绘制铁墙的碰撞矩形（仅开发阶段使用）
-            if isinstance(structure, Iron):
-                pygame.draw.rect(self.screen, RED, structure.rect, 1)
+            # if isinstance(structure, Iron):
+            #     pygame.draw.rect(self.screen, RED, structure.rect, 1)
+            # if isinstance(structure, River):
+            #     pygame.draw.rect(self.screen, RED, structure.rect, 1)
+            # if isinstance(structure, Brick):
+            #     pygame.draw.rect(self.screen, RED, structure.rect, 1)
 
         # 绘制司令部
         self.screen.blit(self.map.headquarters.image, self.map.headquarters.rect)
@@ -260,7 +267,7 @@ class GameScene:
         # 绘制玩家炮弹
         for bullet in self.player.bullets:
             self.screen.blit(bullet.image, bullet.rect)
-
+            # pygame.draw.rect(self.screen, RED, bullet.rect, 1)
         # 绘制敌人
         for enemy in self.enemies:
             self.screen.blit(enemy.image, enemy.rect)
@@ -270,14 +277,17 @@ class GameScene:
                 self.screen.blit(bullet.image, bullet.rect)
 
         # 绘制UI
-        lives_text = self.font.render(f"剩余坦克: {self.player.lives}", True, WHITE)
+        lives_text = self.font.render(f"Life: {self.player.lives}", True, RED)
         self.screen.blit(lives_text, (10, 10))
 
-        enemies_text = self.font.render(f"已消灭敌人: {self.enemies_destroyed}/{self.total_enemies}", True, WHITE)
-        self.screen.blit(enemies_text, (10, 40))
+        lives_text = self.font.render(f"tolerance: {self.player.health}", True, RED)
+        self.screen.blit(lives_text, (10, 40))
 
-        level_text = self.font.render(f"坦克等级: {self.player.level}", True, WHITE)
-        self.screen.blit(level_text, (10, 70))
+        enemies_text = self.font.render(f"destroyed: {self.enemies_destroyed}/{self.total_enemies}", True, WHITE)
+        self.screen.blit(enemies_text, (10, 70))
+
+        level_text = self.font.render(f"level: {self.player.level}", True, WHITE)
+        self.screen.blit(level_text, (10, 100))
 
         # 如果游戏结束，显示游戏结束信息
         if self.game_over:
@@ -286,13 +296,13 @@ class GameScene:
             self.screen.blit(game_over_surf, (0, 0))
 
             if self.victory:
-                result_text = self.font.render("win!", True, GREEN)
+                result_text = self.title_font.render("win!", True, GREEN)
             else:
-                result_text = self.font.render("you lose!", True, RED)
+                result_text = self.title_font.render("boom!", True, RED)
 
+            result_text2 = self.title_font.render("press any key to go on~!", True, WHITE)
+            result_rect2 = result_text2.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50))
             result_rect = result_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 20))
+            self.screen.blit(result_text2, result_rect2)
             self.screen.blit(result_text, result_rect)
 
-            restart_text = self.font.render("按ESC键返回主菜单", True, WHITE)
-            restart_rect = restart_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20))
-            self.screen.blit(restart_text, restart_rect)

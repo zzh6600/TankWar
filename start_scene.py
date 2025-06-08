@@ -30,7 +30,7 @@ class StartScene:
         self.screen.fill(BLACK)
 
         # 绘制标题
-        title = self.title_font.render("坦克大战", True, GREEN)
+        title = self.title_font.render("TankWar", True, GREEN)
         title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4))
         self.screen.blit(title, title_rect)
 
@@ -47,6 +47,6 @@ class StartScene:
         self.screen.blit(quit_text, quit_text_rect)
 
         # 绘制操作说明
-        controls = self.font.render("操作说明: 方向键移动, 空格键发射", True, WHITE)
+        controls = self.font.render(" arrow keys to move, spacebar to shoot", True, WHITE)
         controls_rect = controls.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50))
         self.screen.blit(controls, controls_rect)

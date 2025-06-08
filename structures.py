@@ -49,7 +49,10 @@ class Brick(Structure):
     """红砖类"""
     def __init__(self, x, y):
         brick_image = self.load_structure_image('brick.png', RED)
+        brick_image = pygame.transform.scale(brick_image, (TILE_SIZE, TILE_SIZE))
+
         super().__init__(x, y, image=brick_image, health=BRICK_HP)
+
         self.can_pass_tank = False
         self.can_pass_bullet = False
 
@@ -68,6 +71,7 @@ class River(Structure):
     """河流类"""
     def __init__(self, x, y):
         river_image = self.load_structure_image('river.png', BLUE)
+        river_image = pygame.transform.scale(river_image, (TILE_SIZE, TILE_SIZE))
         super().__init__(x, y, image=river_image)
         self.can_pass_tank = False  # 坦克不能过河
         self.can_pass_bullet = True  # 子弹可以过河
@@ -77,6 +81,7 @@ class Forest(Structure):
     """森林类"""
     def __init__(self, x, y):
         forest_image = self.load_structure_image('forest.png', GREEN)
+        forest_image = pygame.transform.scale(forest_image, (TILE_SIZE, TILE_SIZE))
         super().__init__(x, y, image=forest_image)
         self.can_pass_tank = True  # 坦克可以穿过森林
         self.can_pass_bullet = True  # 子弹可以穿过森林
