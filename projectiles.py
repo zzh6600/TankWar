@@ -53,17 +53,7 @@ class Bullet(pygame.sprite.Sprite):
 
         return True
 
-    @staticmethod
-    def load_structure_image(filename, default_color, size=(30, 30)):
-        """加载建筑图片，失败时返回默认颜色的Surface"""
-        image, _ = ResourceLoader.load_image(filename)
-        if image:
-            return image
-        else:
-            print(f"使用默认颜色替代 {filename}")
-            surface = pygame.Surface(size)
-            surface.fill(default_color)
-            return surface
+
 
     def _get_image_filename(self, direction):
         if direction == UP:
